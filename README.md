@@ -1,4 +1,4 @@
-Mobot_Tutorial
+Mobot Tutorial
 ==============
 
 Robotics Club mobot tutorial
