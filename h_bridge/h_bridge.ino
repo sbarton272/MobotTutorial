@@ -27,11 +27,11 @@ void setup() {
   Serial.begin(SERIAL_BAUD); 
   
   // Init btns: all begin output low, motor is off
-  pinMode(MOTOR_ENABLE_PIN, OUTPUT);
+  pinMode(DRIVE_ENABLE_PIN, OUTPUT);
   pinMode(FORWARD_PWM_PIN, OUTPUT);
   pinMode(BACKWARD_PWM_PIN, OUTPUT);
 
-  digitalWrite(MOTOR_ENABLE_PIN, LOW);
+  digitalWrite(DRIVE_ENABLE_PIN, LOW);
   digitalWrite(FORWARD_PWM_PIN, LOW);
   digitalWrite(BACKWARD_PWM_PIN, LOW);
   
@@ -112,34 +112,51 @@ int moveMotor( int movement, int time ) {
   Serial.print(" for ");
   Serial.println(time);
   
-  // enable motor driver
-  digitalWrite(MOTOR_ENABLE_PIN, HIGH);
-  
   switch (movement) {
     case (FORWARD):
+      // enable motor driver
+      digitalWrite(DRIVE_ENABLE_PIN, HIGH);
       analogWrite(FORWARD_PWM_PIN, MOTOR_100);
       delay(time);
       analogWrite(FORWARD_PWM_PIN, MOTOR_0);
+      // disable motor driver
+      digitalWrite(DRIVE_ENABLE_PIN, LOW);
       break;
     
     case (BACKWARD):
-      analogWrite(BACKWARD_PWM_PIN, MOTOR_100);
+      // enable motor driver
+      digitalWrite(DRIVE_ENABLE_PIN, HIGH);
+      analogWrite(BACKWARD_PWM_PIN, MOTOR_50);
       delay(time);
       analogWrite(BACKWARD_PWM_PIN, MOTOR_0);
+      // disable motor driver
+      digitalWrite(DRIVE_ENABLE_PIN, LOW);
       break;
     
-    // not yet developed
     case (RIGHT):
+      // enable motor driver
+      digitalWrite(TURN_ENABLE_PIN, HIGH);
+      analogWrite(RIGHT_PWM_PIN, MOTOR_100);
+      delay(1000);
+      analogWrite(RIGHT_PWM_PIN, MOTOR_0);
+      // disable motor driver
+      digitalWrite(TURN_ENABLE_PIN, LOW);
+      break;
+      
     case (LEFT):
+      // enable motor driver
+      digitalWrite(TURN_ENABLE_PIN, HIGH);
+      analogWrite(LEFT_PWM_PIN, MOTOR_100);
+      delay(1000);
+      analogWrite(LEFT_PWM_PIN, MOTOR_0);
+      // disable motor driver
+      digitalWrite(TURN_ENABLE_PIN, LOW);
       break;
     
     default: // error
-      // disable motor driver
-      digitalWrite(MOTOR_ENABLE_PIN, LOW);
       return -1;    
   }
   
-  // disable motor driver
-  digitalWrite(MOTOR_ENABLE_PIN, LOW);
   return 0;
 }
+

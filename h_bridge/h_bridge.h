@@ -3,9 +3,12 @@
 
 // Constants
 #define LED_PIN          13
-#define MOTOR_ENABLE_PIN 7
+#define DRIVE_ENABLE_PIN 7
+#define TURN_ENABLE_PIN  2
 #define FORWARD_PWM_PIN  5
 #define BACKWARD_PWM_PIN 3
+#define RIGHT_PWM_PIN    9
+#define LEFT_PWM_PIN     10
 
 // Motor analog default values
 
@@ -23,12 +26,5 @@
 #define BACKWARD  2
 #define RIGHT     3
 #define LEFT      4
-
-
-
-
-void toggleLED( void );
-int moveMotor( int movement, int time );
-
 
 #endif
