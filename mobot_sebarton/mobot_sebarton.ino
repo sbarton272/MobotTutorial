@@ -111,7 +111,7 @@ void setup() {
 void loop() { 
 
   print_sensor_values();
-  read_sensors();
+  read_digital_sensors();
   
 } 
 
