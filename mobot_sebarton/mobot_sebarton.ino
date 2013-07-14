@@ -51,13 +51,17 @@ const int STRAIGHT =  0;
 // serial communication rate
 const int SERIAL_BAUD = 9600;
 
-// predefined delays
+// predefined times
 const int INIT_DELAY = 3000; // 3 sec
+const int SENSOR_TIMOUT = 3000; // 3 ms until sensor doesn't return value
  
 /*********************************************************************
  * Global Variables
  ********************************************************************/
-boolean  led_on = true; 
+boolean  ledOn = true; 
+int sensorR = 0;
+int sensorC = 0;
+int sensorL = 0;
  
 /*********************************************************************
  * Set-up
@@ -106,19 +110,9 @@ void setup() {
  */
 void loop() { 
 
-  // Go forward, right, left, backwards, stop
-  drive(FORWARD, SPEED_FULL);
-  delay(1000);
-  turn(RIGHT);
-  delay(1000);
-  turn(LEFT);
-  delay(1000);
-  turn(STRAIGHT);
-  drive(BACKWARD, SPEED_FULL);
-  delay(1000);
-  drive(STOP, SPEED_STOP);
-  delay(100000000);
-
+  print_sensor_values();
+  read_sensors();
+  
 } 
 
 /*********************************************************************
@@ -186,19 +180,89 @@ void turn( int direction ) {
 }
 
 /*********************************************************************
+ * Sensor Functions
+ ********************************************************************/
+
+/* read sensor values and update sensor variables
+ *   can only be used if the sensors are of the analog variety
+ */
+void read_analog_sensors() {
+  
+ sensorR = analogRead(SENSOR_R_PIN);
+ sensorC = analogRead(SENSOR_C_PIN);
+ sensorL = analogRead(SENSOR_L_PIN);
+  
+}
+
+/* read sensor values and update sensor variables
+ *   can only be used if the sensors are of the digital variety
+ *   Code inspired from here http://bildr.org/2011/06/qre1113-arduino/
+ */
+void read_digital_sensors(){
+
+  sensorR = ping_digital_sensor(SENSOR_R_PIN);
+  sensorC = ping_digital_sensor(SENSOR_C_PIN);
+  sensorL = ping_digital_sensor(SENSOR_L_PIN);
+  
+}
+
+/* ping the sensor to read its value
+ *   first send 1 to sensor to start read
+ *   delay 10 microseconds before turning on input read to give time to safely convert to input
+ *   time how long until a one is read
+ *   The time is proportional to the value on the sensor
+ */
+int ping_digital_sensor(int pin) {
+  
+  // init values
+  long startTime;
+  int sensorTime;
+  
+  // ping sensor
+  pinMode( pin, OUTPUT );
+  digitalWrite( pin, HIGH );  
+  
+  // delay to safely switch to input mode
+  delayMicroseconds(10);
+  pinMode( pin, INPUT );
+
+  // start timer (get current time, safe to use as overflows after 70 min)
+  startTime = micros();
+
+  // time how long the input is HIGH, but quit after 3ms as nothing happens after that
+  while ( (digitalRead(pin) == HIGH) && 
+          ((micros() - startTime) < SENSOR_TIMOUT) ); 
+  
+  sensorTime = micros() - startTime;
+
+  return sensorTime;
+}
+
+/*********************************************************************
  * Debugging Functions
  ********************************************************************/
 
 /* toggleLED: using led_on var (global) decide to turn LED on/off */
-void toggleLED() {
+void toggle_LED() {
   
-  if (led_on) {
+  if (ledOn) {
     digitalWrite(LED_PIN, LOW);
-    led_on = false;
+    ledOn = false;
   } else {
     digitalWrite(LED_PIN, HIGH);
-    led_on = true;
+    ledOn = true;
   }  
   
 }
 
+/* print the current sensor values */
+void print_sensor_values() {
+  
+  Serial.print("Sensors (R, C, L): \t");
+  Serial.print(sensorR);
+  Serial.print(",\t");
+  Serial.print(sensorC);
+  Serial.print(",\t");
+  Serial.println(sensorL);
+  
+}
