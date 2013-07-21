@@ -13,13 +13,20 @@
   More on the CMU Robotics Club is here: http://roboticsclub.org/
  
  @TODO
-  - Read values, follow line
-  - Interpret sensor: line/ground?
+  - follow line (inside)
+  - On/off switch
+  - Interpret sensor outside: line/ground?
+  - Follow line outside (basic algorithm)
+  - More sophisticated algorithm
  */
 
 /*********************************************************************
  * Constants 
  ********************************************************************/
+
+// toggle DEBUG mode pre-compile
+const boolean DEBUG = true;
+
 // pins
 const int LED_PIN           = 13;
 const int DRIVE_ENABLE_PIN  = 4;
@@ -51,18 +58,19 @@ const int SERIAL_BAUD = 9600;
 // predefined times
 const int INIT_DELAY = 3000; // 3 sec
 const int SENSOR_TIMOUT = 3000; // 3 ms until sensor doesn't return value
-// @TODO: May not be necessary
+  // @TODO: May not be necessary
 const int SENSOR_SAFETY_DELAY = 10; // 10 us delay used to wait for sensor value
 
-const boolean DEBUG = true;
+// Line detection values
+const int BLACK_LINE_THRESHOLD = 2900;
  
 /*********************************************************************
  * Global Variables
  ********************************************************************/
 boolean ledOn = true; 
-int sensorR = 0;
-int sensorC = 0;
-int sensorL = 0;
+int globalSensorR = 0;
+int globalSensorC = 0;
+int globalSensorL = 0;
  
 /*********************************************************************
  * Set-up
@@ -122,6 +130,98 @@ void loop() {
   serial_driving_control();
   
 } 
+
+/*********************************************************************
+ * Line Follow Algorithm
+ ********************************************************************/
+
+/* Basic Algoithm using the 3 sensors. O marks line seen, - marks 
+ *  no line seen.
+ * Left   Center    Right     Turn      Move
+ *  -       -         -       Stop      Stop
+ *  -       -         O       Right     Forward - slow
+ *  -       O         -       Straight  Forward - fast      
+ *  -       O         O       Right     Forward - slow
+ *  O       -         -       Left      Forward - slow      
+ *  O       -         O       Stop      Stop (error state)      
+ *  O       O         -       Left      Forward - slow
+ *  O       O         O       Straight  Forward - fast      
+ */
+
+/* using the 3 sensor inputs decide how to turn and drive. Uses the above
+ *  table. No input or output.
+ */
+void follow_line(void) {
+
+  boolean onLineL, onLineC, onLineR;
+
+  // do sesors see the line?
+  onLineL = sensor_see_line( globalSensorL );
+  onLineC = sensor_see_line( globalSensorC );
+  onLineR = sensor_see_line( globalSensorR );
+
+  if ( !onLineL && !onLineC && !onLineR ) {
+      // turn: stop, drive: stop
+      // LOST
+      drive( STOP, SPEED_STOP );
+      turn( STRAIGHT );
+      if (DEBUG) { Serial.println("Line follow: lost state") };
+
+  } else if ( !onLineL && !onLineC && onLineR ) {
+      // turn: right, drive: forward slow
+      drive( FORWARD, SPEED_HALF );
+      turn( RIGHT );
+
+  } else if ( !onLineL && onLineC && !onLineR ) {
+      // turn: stright, drive: forward fast
+      drive( FORWARD, SPEED_FULL );
+      turn( STRAIGHT );
+
+  } else if ( !onLineL && onLineC && onLineR ) {
+      // turn: right, drive: forward slow
+      drive( FORWARD, SPEED_HALF );
+      turn( RIGHT );
+
+  } else if ( onLineL && !onLineC && !onLineR ) {
+      // turn: left, drive: forward slow
+      drive( FORWARD, SPEED_HALF );
+      turn( LEFT );
+
+  } else if ( onLineL && !onLineC && onLineR ) {
+      // turn: stright, drive: stop
+      // ERROR state as line only seen on edges
+      drive( STOP, SPEED_STOP );
+      turn( STRAIGHT );
+      if (DEBUG) { Serial.println("Line follow: error state") };
+
+  } else if ( onLineL && onLineC && !onLineR ) {
+      // turn: left, drive: forward slow
+      drive( FORWARD, SPEED_HALF );
+      turn( LEFT );
+
+  } else if ( onLineL && onLineC && onLineR ) {
+      // turn: stright, drive: forward fast
+      drive( FORWARD, SPEED_FULL );
+      turn( STRAIGHT );
+
+  } else {
+      // error state, not reachable
+      Serial.println("Line follow: illegal state");
+  }
+
+}
+
+/* determie if any of the sensors are seeing the line 
+ *  the most basic way to do this is with a threshold
+ *  @TODO: update to look at sensor differences, history
+ *          and apply filtering
+ */
+boolean sensor_see_line( int sensorValue ) {
+
+  return sensorVlaue < BLACK_LINE_THRESHOLD;
+
+}
+
 
 /*********************************************************************
  * Motor Functions
@@ -196,9 +296,9 @@ void turn( int direction ) {
  */
 void read_analog_sensors() {
   
- sensorR = analogRead(SENSOR_R_PIN);
- sensorC = analogRead(SENSOR_C_PIN);
- sensorL = analogRead(SENSOR_L_PIN);
+ globalSensorR = analogRead(SENSOR_R_PIN);
+ globalSensorC = analogRead(SENSOR_C_PIN);
+ globalSensorL = analogRead(SENSOR_L_PIN);
   
 }
 
@@ -208,9 +308,9 @@ void read_analog_sensors() {
  */
 void read_digital_sensors(){
 
-  sensorR = ping_digital_sensor(SENSOR_R_PIN);
-  sensorC = ping_digital_sensor(SENSOR_C_PIN);
-  sensorL = ping_digital_sensor(SENSOR_L_PIN);
+  globalSensorR = ping_digital_sensor(SENSOR_R_PIN);
+  globalSensorC = ping_digital_sensor(SENSOR_C_PIN);
+  globalSensorL = ping_digital_sensor(SENSOR_L_PIN);
   
 }
 
@@ -316,10 +416,10 @@ void serial_driving_control() {
 void print_sensor_values() {
   
   Serial.print("Sensors (R, C, L): \t");
-  Serial.print(sensorR);
+  Serial.print(globalSensorR);
   Serial.print(",\t");
-  Serial.print(sensorC);
+  Serial.print(globalSensorC);
   Serial.print(",\t");
-  Serial.println(sensorL);
+  Serial.println(globalSensorL);
   
 }
