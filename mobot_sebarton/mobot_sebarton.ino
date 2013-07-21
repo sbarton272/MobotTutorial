@@ -13,11 +13,13 @@
   More on the CMU Robotics Club is here: http://roboticsclub.org/
  
  @TODO
-  - follow line (inside)
+  - follow line (inside) - need better lost line decision making
   - On/off switch
   - Interpret sensor outside: line/ground?
   - Follow line outside (basic algorithm)
   - More sophisticated algorithm
+  
+  - Increase drive PWM percentage when turning, both are drawing from the same source
  */
 
 /*********************************************************************
@@ -40,9 +42,13 @@ const int SENSOR_C_PIN      = A1;
 const int SENSOR_L_PIN      = A2;
  
 // motor speeds
-const int SPEED_STOP = 0;
-const int SPEED_HALF = 127;
-const int SPEED_FULL = 255;
+const int SPEED_STOP  = 0;
+const int SPEED_EIGTH = 32;
+const int SPEED_QUART = 64;
+const int SPEED_HALF  = 127;
+const int SPEED_FULL  = 255;
+const int SPEED_FWRD  = 150; // slowest speed it runs well at for driving
+const int SPEED_TURN  = 230; // slowest speed it runs well at for turning
 
 // definitions
 const int FORWARD  =  1;
@@ -57,7 +63,8 @@ const int SERIAL_BAUD = 9600;
 
 // predefined times
 const int INIT_DELAY = 3000; // 3 sec
-const int SENSOR_TIMOUT = 3000; // 3 ms until sensor doesn't return value
+const int SENSOR_TIMOUT = 4000; // 3 ms until sensor doesn't return value
+const int LOST_TIMEOUT = 1000; // 1 sec timeout when lost to stop searching for line
   // @TODO: May not be necessary
 const int SENSOR_SAFETY_DELAY = 10; // 10 us delay used to wait for sensor value
 
@@ -71,6 +78,7 @@ boolean ledOn = true;
 int globalSensorR = 0;
 int globalSensorC = 0;
 int globalSensorL = 0;
+int lostTimer = 0;
  
 /*********************************************************************
  * Set-up
@@ -102,14 +110,14 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);
   
-  if (DEBUG) {
-    Serial.println("Spencer's Mobot Online"); 
-    Serial.println("\tDebug Mode"); 
-  }
-  
   // Delay and turn off light
   delay(INIT_DELAY);
   digitalWrite(LED_PIN, LOW);
+
+  if (DEBUG) {
+    Serial.println("Spencer's Mobot Online"); 
+    Serial.println("Debug Mode"); 
+  }
 
 } 
 
@@ -121,7 +129,9 @@ void setup() {
  *  
  */
 void loop() { 
+  char command = '\0';
 
+  
   if (DEBUG){
     print_sensor_values();
   }
@@ -129,6 +139,7 @@ void loop() {
   read_digital_sensors();
   serial_driving_control();
   
+  follow_line();
 } 
 
 /*********************************************************************
@@ -137,15 +148,15 @@ void loop() {
 
 /* Basic Algoithm using the 3 sensors. O marks line seen, - marks 
  *  no line seen.
- * Left   Center    Right     Turn      Move
- *  -       -         -       Stop      Stop
- *  -       -         O       Right     Forward - slow
- *  -       O         -       Straight  Forward - fast      
- *  -       O         O       Right     Forward - slow
- *  O       -         -       Left      Forward - slow      
- *  O       -         O       Stop      Stop (error state)      
- *  O       O         -       Left      Forward - slow
- *  O       O         O       Straight  Forward - fast      
+ *   Left   Center    Right     Turn      Move
+ * 1   -       -         -       Stop      Stop
+ * 2   -       -         O       Right     Forward - slow
+ * 3   -       O         -       Straight  Forward - fast      
+ * 4   -       O         O       Right     Forward - slow
+ * 5   O       -         -       Left      Forward - slow      
+ * 6   O       -         O       Stop      Stop (error state)      
+ * 7   O       O         -       Left      Forward - slow
+ * 8   O       O         O       Straight  Forward - fast      
  */
 
 /* using the 3 sensor inputs decide how to turn and drive. Uses the above
@@ -162,52 +173,72 @@ void follow_line(void) {
 
   if ( !onLineL && !onLineC && !onLineR ) {
       // turn: stop, drive: stop
-      // LOST
-      drive( STOP, SPEED_STOP );
-      turn( STRAIGHT );
-      if (DEBUG) { Serial.println("Line follow: lost state") };
+      // LOST - continue the previous action for 1 sec.
+
+      if ( lostTimer == 0 ) {
+        // start lost timer
+        lostTimer = millis(); // get time in milli sec.
+
+      } else if ( lostTimer >= LOST_TIMEOUT ) {
+        // timer overrun, so stop vehicle        
+        drive( STOP, SPEED_STOP );
+        turn( STRAIGHT );
+      }
+
+      if (DEBUG) { Serial.println("Line follow: 1 lost state"); };
+      return;
 
   } else if ( !onLineL && !onLineC && onLineR ) {
       // turn: right, drive: forward slow
-      drive( FORWARD, SPEED_HALF );
+      drive( FORWARD, SPEED_FULL );
       turn( RIGHT );
+      if (DEBUG) { Serial.println("Line follow: 2 right"); };
 
   } else if ( !onLineL && onLineC && !onLineR ) {
       // turn: stright, drive: forward fast
-      drive( FORWARD, SPEED_FULL );
+      drive( FORWARD, SPEED_HALF );
       turn( STRAIGHT );
+      if (DEBUG) { Serial.println("Line follow: 3 forward"); };
 
   } else if ( !onLineL && onLineC && onLineR ) {
       // turn: right, drive: forward slow
-      drive( FORWARD, SPEED_HALF );
+      drive( FORWARD, SPEED_FULL );
       turn( RIGHT );
+      if (DEBUG) { Serial.println("Line follow: 4 right"); };
 
   } else if ( onLineL && !onLineC && !onLineR ) {
       // turn: left, drive: forward slow
-      drive( FORWARD, SPEED_HALF );
+      drive( FORWARD, SPEED_FULL );
       turn( LEFT );
+      if (DEBUG) { Serial.println("Line follow: 5 left"); };
 
   } else if ( onLineL && !onLineC && onLineR ) {
       // turn: stright, drive: stop
       // ERROR state as line only seen on edges
       drive( STOP, SPEED_STOP );
       turn( STRAIGHT );
-      if (DEBUG) { Serial.println("Line follow: error state") };
+      if (DEBUG) { Serial.println("Line follow: 6 error state"); }
 
   } else if ( onLineL && onLineC && !onLineR ) {
       // turn: left, drive: forward slow
-      drive( FORWARD, SPEED_HALF );
+      drive( FORWARD, SPEED_FULL );
       turn( LEFT );
+      if (DEBUG) { Serial.println("Line follow: 7 left"); };
 
   } else if ( onLineL && onLineC && onLineR ) {
       // turn: stright, drive: forward fast
-      drive( FORWARD, SPEED_FULL );
+      drive( FORWARD, SPEED_HALF );
       turn( STRAIGHT );
+      if (DEBUG) { Serial.println("Line follow: 8 forward"); };
 
   } else {
       // error state, not reachable
       Serial.println("Line follow: illegal state");
+      return;
   }
+
+  // reset lost timer
+  lostTimer = 0;
 
 }
 
@@ -218,7 +249,7 @@ void follow_line(void) {
  */
 boolean sensor_see_line( int sensorValue ) {
 
-  return sensorVlaue < BLACK_LINE_THRESHOLD;
+  return sensorValue > BLACK_LINE_THRESHOLD;
 
 }
 
