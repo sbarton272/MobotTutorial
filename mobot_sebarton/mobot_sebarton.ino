@@ -13,11 +13,8 @@
   More on the CMU Robotics Club is here: http://roboticsclub.org/
  
  @TODO
- - Check right/left, forward/back pins correct
- - Send sensors via serial
- - drive and turn
- - serial debug interface
- 
+  - Read values, follow line
+  - Interpret sensor: line/ground?
  */
 
 /*********************************************************************
@@ -54,11 +51,15 @@ const int SERIAL_BAUD = 9600;
 // predefined times
 const int INIT_DELAY = 3000; // 3 sec
 const int SENSOR_TIMOUT = 3000; // 3 ms until sensor doesn't return value
+// @TODO: May not be necessary
+const int SENSOR_SAFETY_DELAY = 10; // 10 us delay used to wait for sensor value
+
+const boolean DEBUG = true;
  
 /*********************************************************************
  * Global Variables
  ********************************************************************/
-boolean  ledOn = true; 
+boolean ledOn = true; 
 int sensorR = 0;
 int sensorC = 0;
 int sensorL = 0;
@@ -93,7 +94,10 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);
   
-  Serial.println("Spencer's Mobot Online"); 
+  if (DEBUG) {
+    Serial.println("Spencer's Mobot Online"); 
+    Serial.println("\tDebug Mode"); 
+  }
   
   // Delay and turn off light
   delay(INIT_DELAY);
@@ -110,8 +114,12 @@ void setup() {
  */
 void loop() { 
 
-  print_sensor_values();
+  if (DEBUG){
+    print_sensor_values();
+  }
+  
   read_digital_sensors();
+  serial_driving_control();
   
 } 
 
@@ -223,7 +231,7 @@ int ping_digital_sensor(int pin) {
   digitalWrite( pin, HIGH );  
   
   // delay to safely switch to input mode
-  delayMicroseconds(10);
+  delayMicroseconds(SENSOR_SAFETY_DELAY);
   pinMode( pin, INPUT );
 
   // start timer (get current time, safe to use as overflows after 70 min)
@@ -252,6 +260,55 @@ void toggle_LED() {
     digitalWrite(LED_PIN, HIGH);
     ledOn = true;
   }  
+  
+}
+
+/* Control mobot through serial interface
+ *  A/a toggle LED
+ *  F/f forward
+ *  B/b backward
+ *  R/r right
+ *  L/l left
+ *  S/s stop, straightens as well
+ * Each command is executed for a predefined time (MOTOR_DELAY)
+ */
+void serial_driving_control() {
+  char command = '\0';
+ 
+  // check if command has been sent
+  if ( Serial.available() ) {
+    // read the most recent byte
+    command = Serial.read();
+    
+    // interpret the command
+    switch (command) {
+      case 'a':
+      case 'A':
+        toggle_LED();
+        break;
+      case 'f':
+      case 'F':
+        drive( FORWARD, SPEED_HALF );
+        break;
+      case 'b':
+      case 'B':
+        drive( BACKWARD, SPEED_HALF );
+        break;
+      case 'r':
+      case 'R':
+        turn( RIGHT );
+        break;
+      case 'l':
+      case 'L':
+        turn( LEFT );
+        break;
+      case 's':
+      case 'S':
+        turn( STRAIGHT );
+        drive( STOP, SPEED_STOP );
+        break;
+    }
+  } 
   
 }
 
